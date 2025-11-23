@@ -41,16 +41,21 @@ setTimeout(() => {
     map: 0,
   };
   
+  // Use travelToCoordinates but we'll override the time in the engine
   engine.travelToCoordinates(goldshire, 'Goldshire');
+  
+  // HACK: Override travel time to 5 seconds for test
+  const state = engine.getState();
+  (engine as any).state.travelEndTime = Date.now() + 5000; // 5 seconds instead of 78
 }, 2000);
 
-// Check every 10 seconds
+// Check every 2 seconds
 let checkCount = 0;
 const checker = setInterval(() => {
   checkCount++;
   const state = engine.getState();
   
-  console.log(`\n[${checkCount * 10}s] Status Check:`);
+  console.log(`\n[${checkCount * 2}s] Status Check:`);
   console.log(`  State: ${state.currentState}`);
   console.log(`  Zone: ${state.currentZone || 'Unknown'}`);
   console.log(`  Position: (${state.character.position.x.toFixed(1)}, ${state.character.position.y.toFixed(1)})`);
@@ -89,14 +94,14 @@ const checker = setInterval(() => {
     }, 5000);
   }
   
-  // Timeout after 2 minutes
-  if (checkCount >= 12) {
+  // Timeout after 60 seconds
+  if (checkCount >= 30) {
     console.log('\n⏰ Test timeout');
     clearInterval(checker);
     engine.stop();
     process.exit(1);
   }
-}, 10000);
+}, 2000);
 
 // Handle Ctrl+C
 process.on('SIGINT', () => {

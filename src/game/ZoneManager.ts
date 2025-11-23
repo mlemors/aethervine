@@ -17,6 +17,7 @@ export interface Zone {
   level: string;
   faction: 'Alliance' | 'Horde' | 'Contested';
   parentZone?: string;
+  isSubzone?: boolean; // Dörfer/Städte innerhalb einer Zone
 }
 
 export interface POI {
@@ -25,6 +26,7 @@ export interface POI {
   nameDE: string;
   type: 'inn' | 'class-trainer' | 'profession-trainer' | 'vendor' | 'quest-giver' | 'flight-master' | 'bank';
   zone: string;
+  subzone?: string; // z.B. "Goldshire" innerhalb von "Elwynn Forest"
   position: Position;
   npcId?: number;
   npcName?: string;
@@ -35,6 +37,14 @@ export interface POI {
  */
 const ZONES: Zone[] = [
   {
+    id: 12,
+    name: 'Elwynn Forest',
+    nameDE: 'Wald von Elwynn',
+    bounds: { minX: -9530, maxX: -8970, minY: -1440, maxY: 960 },
+    level: '1-10',
+    faction: 'Alliance',
+  },
+  {
     id: 9,
     name: 'Northshire Valley',
     nameDE: 'Nordhain',
@@ -42,14 +52,17 @@ const ZONES: Zone[] = [
     level: '1-5',
     faction: 'Alliance',
     parentZone: 'Elwynn Forest',
+    isSubzone: true,
   },
   {
-    id: 12,
-    name: 'Elwynn Forest',
-    nameDE: 'Wald von Elwynn',
-    bounds: { minX: -9530, maxX: -8970, minY: -1440, maxY: 960 },
-    level: '1-10',
+    id: 85,
+    name: 'Goldshire',
+    nameDE: 'Goldhain',
+    bounds: { minX: -9500, maxX: -9400, minY: -50, maxY: 150 },
+    level: '5-10',
     faction: 'Alliance',
+    parentZone: 'Elwynn Forest',
+    isSubzone: true, // Goldshire ist ein Dorf innerhalb von Elwynn Forest
   },
   {
     id: 1519,
@@ -59,28 +72,20 @@ const ZONES: Zone[] = [
     level: '1-80',
     faction: 'Alliance',
   },
-  {
-    id: 85,
-    name: 'Goldshire',
-    nameDE: 'Goldhain',
-    bounds: { minX: -9530, maxX: -9400, minY: 0, maxY: 150 },
-    level: '5-10',
-    faction: 'Alliance',
-    parentZone: 'Elwynn Forest',
-  },
 ];
 
 /**
  * Points of Interest (NPCs, Gebäude)
  */
 const POIS: POI[] = [
-  // Northshire Valley
+  // Northshire Valley (Subzone von Elwynn Forest)
   {
     id: 1,
     name: 'Northshire Abbey',
     nameDE: 'Abtei von Nordhain',
     type: 'inn',
-    zone: 'Northshire Valley',
+    zone: 'Elwynn Forest',
+    subzone: 'Northshire Valley',
     position: { x: -8914.55, y: -135.43, z: 81.87, map: 0 },
   },
   {
@@ -88,19 +93,21 @@ const POIS: POI[] = [
     name: 'Warrior Trainer',
     nameDE: 'Kriegerlehrer',
     type: 'class-trainer',
-    zone: 'Northshire Valley',
+    zone: 'Elwynn Forest',
+    subzone: 'Northshire Valley',
     position: { x: -8918.78, y: -121.23, z: 82.13, map: 0 },
     npcId: 913,
     npcName: 'Llane Beshere',
   },
   
-  // Goldshire
+  // Goldshire (Dorf in Elwynn Forest)
   {
     id: 10,
     name: 'Lion\'s Pride Inn',
     nameDE: 'Gasthaus zum Stolz des Löwen',
     type: 'inn',
-    zone: 'Goldshire',
+    zone: 'Elwynn Forest',
+    subzone: 'Goldshire',
     position: { x: -9466.62, y: 45.83, z: 56.95, map: 0 },
   },
   {
@@ -108,7 +115,8 @@ const POIS: POI[] = [
     name: 'Goldshire Warrior Trainer',
     nameDE: 'Kriegerlehrer (Goldhain)',
     type: 'class-trainer',
-    zone: 'Goldshire',
+    zone: 'Elwynn Forest',
+    subzone: 'Goldshire',
     position: { x: -9461.02, y: 109.05, z: 56.96, map: 0 },
     npcId: 5113,
     npcName: 'Lyria Du Lac',
@@ -118,7 +126,8 @@ const POIS: POI[] = [
     name: 'Mining Trainer',
     nameDE: 'Bergbaulehrer',
     type: 'profession-trainer',
-    zone: 'Goldshire',
+    zone: 'Elwynn Forest',
+    subzone: 'Goldshire',
     position: { x: -9456.31, y: 87.31, z: 56.96, map: 0 },
   },
   {
@@ -126,7 +135,8 @@ const POIS: POI[] = [
     name: 'Blacksmithing Trainer',
     nameDE: 'Schmiedelehrer',
     type: 'profession-trainer',
-    zone: 'Goldshire',
+    zone: 'Elwynn Forest',
+    subzone: 'Goldshire',
     position: { x: -9456.31, y: 87.31, z: 56.96, map: 0 },
   },
   {
@@ -134,7 +144,8 @@ const POIS: POI[] = [
     name: 'General Goods Vendor',
     nameDE: 'Händler',
     type: 'vendor',
-    zone: 'Goldshire',
+    zone: 'Elwynn Forest',
+    subzone: 'Goldshire',
     position: { x: -9460.05, y: 30.12, z: 56.96, map: 0 },
   },
 ];
@@ -142,15 +153,56 @@ const POIS: POI[] = [
 export class ZoneManager {
   /**
    * Bestimme aktuelle Zone anhand Position
+   * Priorisiert Subzones (Dörfer) vor Hauptzonen
    */
   getCurrentZone(position: Position): Zone | null {
-    // Check subzones first (like Northshire, Goldshire)
+    // Check subzones first (wie Northshire, Goldshire)
     for (const zone of ZONES) {
-      if (this.isInZone(position, zone)) {
+      if (zone.isSubzone && this.isInZone(position, zone)) {
         return zone;
       }
     }
+    
+    // Then check main zones
+    for (const zone of ZONES) {
+      if (!zone.isSubzone && this.isInZone(position, zone)) {
+        return zone;
+      }
+    }
+    
     return null;
+  }
+
+  /**
+   * Hole vollständige Zone-Info (inkl. Subzone wenn vorhanden)
+   */
+  getFullZoneInfo(position: Position): { zone: Zone | null; subzone: Zone | null } {
+    let subzone: Zone | null = null;
+    let zone: Zone | null = null;
+
+    // Check for subzone first
+    for (const z of ZONES) {
+      if (z.isSubzone && this.isInZone(position, z)) {
+        subzone = z;
+        // Find parent zone by name
+        if (subzone.parentZone) {
+          zone = ZONES.find(parent => parent.name === subzone!.parentZone) || null;
+        }
+        break;
+      }
+    }
+
+    // If no subzone found, check main zones
+    if (!subzone) {
+      for (const z of ZONES) {
+        if (!z.isSubzone && this.isInZone(position, z)) {
+          zone = z;
+          break;
+        }
+      }
+    }
+
+    return { zone, subzone };
   }
 
   /**
@@ -166,17 +218,19 @@ export class ZoneManager {
   }
 
   /**
-   * Hole alle POIs in einer Zone
+   * Hole alle POIs in einer Zone oder Subzone
    */
   getPOIsInZone(zoneName: string): POI[] {
-    return POIS.filter(poi => poi.zone === zoneName);
+    return POIS.filter(poi => poi.zone === zoneName || poi.subzone === zoneName);
   }
 
   /**
-   * Hole POIs nach Typ
+   * Hole POIs nach Typ (zone oder subzone)
    */
   getPOIsByType(zoneName: string, type: POI['type']): POI[] {
-    return POIS.filter(poi => poi.zone === zoneName && poi.type === type);
+    return POIS.filter(poi => 
+      (poi.zone === zoneName || poi.subzone === zoneName) && poi.type === type
+    );
   }
 
   /**
@@ -236,13 +290,18 @@ export class ZoneManager {
   }
 
   /**
-   * Hole Zone Info als Text
+   * Hole Zone Info als Text (zeigt Subzone wenn vorhanden)
    */
   getZoneInfo(position: Position): string {
-    const zone = this.getCurrentZone(position);
-    if (!zone) return 'Unbekannte Zone';
-
-    return `${zone.nameDE} (${zone.level}) - ${zone.faction}`;
+    const { zone, subzone } = this.getFullZoneInfo(position);
+    
+    if (subzone && zone) {
+      return `${subzone.nameDE} - ${zone.nameDE} (${subzone.level}) - ${subzone.faction}`;
+    } else if (zone) {
+      return `${zone.nameDE} (${zone.level}) - ${zone.faction}`;
+    }
+    
+    return 'Unbekannte Zone';
   }
 
   /**
