@@ -1,0 +1,378 @@
+/**
+ * Game Engine - Hauptspiel-Loop für Auto-Leveling
+ */
+
+import { QuestNavigator } from './QuestNavigator';
+import { QuestExecutor, type QuestProgress, type GrindSpot } from './QuestExecutor';
+import { calculateTravelTime, MOVEMENT_SPEEDS, type Position } from './MovementSystem';
+import { getDatabase } from '../data/sqlite_loader';
+
+export type GameState = 'idle' | 'traveling' | 'combat' | 'looting' | 'turning-in-quest';
+
+export interface Character {
+  name: string;
+  race: string;
+  class: string;
+  level: number;
+  experience: number;
+  position: Position;
+}
+
+export interface GameEngineState {
+  character: Character;
+  currentState: GameState;
+  currentQuest: QuestProgress | null;
+  currentDestination: Position | null;
+  travelStartTime: number | null;
+  travelEndTime: number | null;
+  combatStartTime: number | null;
+  combatEndTime: number | null;
+  actionLog: string[];
+}
+
+/**
+ * Game Engine - Automatisches Leveling System
+ */
+export class GameEngine {
+  private state: GameEngineState;
+  private navigator: QuestNavigator;
+  private executor: QuestExecutor;
+  private db = getDatabase();
+  private updateInterval: NodeJS.Timeout | null = null;
+  private onStateChange?: (state: GameEngineState) => void;
+
+  constructor(character: Character, onStateChange?: (state: GameEngineState) => void) {
+    this.state = {
+      character,
+      currentState: 'idle',
+      currentQuest: null,
+      currentDestination: null,
+      travelStartTime: null,
+      travelEndTime: null,
+      combatStartTime: null,
+      combatEndTime: null,
+      actionLog: [],
+    };
+
+    this.navigator = new QuestNavigator();
+    this.executor = new QuestExecutor();
+    this.onStateChange = onStateChange;
+
+    // Set start position based on race/class
+    // For now, use simplified class ID (1 = Warrior)
+    const classId = character.class === 'Warrior' ? 1 : 1;
+    const startPos = this.navigator.getStartPosition(character.race as any, classId);
+    if (startPos) {
+      this.state.character.position = startPos;
+    }
+  }
+
+  /**
+   * Starte Game Loop
+   */
+  start(): void {
+    this.log(`🎮 Game Engine started for ${this.state.character.name}`);
+    this.log(`📍 Starting position: (${this.state.character.position.x.toFixed(1)}, ${this.state.character.position.y.toFixed(1)})`);
+    
+    // Update every second
+    this.updateInterval = setInterval(() => this.update(), 1000);
+    
+    // Start first quest
+    this.startNextQuest();
+  }
+
+  /**
+   * Stoppe Game Loop
+   */
+  stop(): void {
+    if (this.updateInterval) {
+      clearInterval(this.updateInterval);
+      this.updateInterval = null;
+    }
+    this.log('⏸️  Game Engine stopped');
+  }
+
+  /**
+   * Main Update Loop
+   */
+  private update(): void {
+    const now = Date.now();
+
+    switch (this.state.currentState) {
+      case 'traveling':
+        this.updateTravel(now);
+        break;
+      
+      case 'combat':
+        this.updateCombat(now);
+        break;
+      
+      case 'turning-in-quest':
+        this.updateQuestTurnIn(now);
+        break;
+      
+      case 'idle':
+        // If idle, check what to do next
+        this.decideNextAction();
+        break;
+    }
+
+    this.notifyStateChange();
+  }
+
+  /**
+   * Update Travel State
+   */
+  private updateTravel(now: number): void {
+    if (!this.state.travelEndTime || !this.state.currentDestination) return;
+
+    if (now >= this.state.travelEndTime) {
+      // Arrived at destination
+      this.state.character.position = { ...this.state.currentDestination };
+      this.log(`✓ Arrived at (${this.state.character.position.x.toFixed(1)}, ${this.state.character.position.y.toFixed(1)})`);
+      
+      this.state.travelStartTime = null;
+      this.state.travelEndTime = null;
+      this.state.currentDestination = null;
+      this.state.currentState = 'idle';
+    }
+  }
+
+  /**
+   * Update Combat State
+   */
+  private updateCombat(now: number): void {
+    if (!this.state.combatEndTime) return;
+
+    if (now >= this.state.combatEndTime) {
+      // Combat finished
+      this.log('💀 Enemy defeated!');
+      
+      this.state.combatStartTime = null;
+      this.state.combatEndTime = null;
+      this.state.currentState = 'idle';
+    }
+  }
+
+  /**
+   * Update Quest Turn-In State
+   */
+  private updateQuestTurnIn(now: number): void {
+    if (!this.state.travelEndTime) return;
+
+    if (now >= this.state.travelEndTime) {
+      // Arrived at quest giver, turn in quest
+      if (this.state.currentQuest) {
+        const success = this.executor.turnInQuest(this.state.currentQuest.questId);
+        if (success) {
+          this.log(`✓ Quest completed: ${this.state.currentQuest.questName}`);
+          // TODO: Add XP and rewards
+        }
+        this.state.currentQuest = null;
+      }
+      
+      this.state.travelStartTime = null;
+      this.state.travelEndTime = null;
+      this.state.currentState = 'idle';
+    }
+  }
+
+  /**
+   * Decide what to do next
+   */
+  private decideNextAction(): void {
+    // Check if we have an active quest
+    if (!this.state.currentQuest) {
+      this.startNextQuest();
+      return;
+    }
+
+    // Check if quest is complete
+    if (this.executor.isQuestComplete()) {
+      this.returnToQuestGiver();
+      return;
+    }
+
+    // Continue grinding
+    this.continueGrinding();
+  }
+
+  /**
+   * Start next quest from guide
+   */
+  private startNextQuest(): void {
+    // Get current zone from character position (simplified)
+    const currentZone = 'Northshire'; // TODO: Determine from position
+    
+    const destination = this.navigator.getNextDestination(
+      this.state.character.race as any,
+      this.state.character.level,
+      currentZone
+    );
+
+    if (!destination) {
+      this.log('❌ No more quests available');
+      this.stop();
+      return;
+    }
+
+    if (destination.type === 'quest-giver') {
+      // Accept quest
+      const quest = this.executor.acceptQuest(destination.questId!);
+      if (quest) {
+        this.state.currentQuest = quest;
+        this.log(`📜 Quest accepted: ${quest.questName}`);
+        
+        // Log objectives
+        quest.objectives.forEach((obj, idx) => {
+          this.log(`  [${idx + 1}] ${obj.type}: ${obj.required}x ${obj.creatureName || 'Item'}`);
+        });
+
+        // Start grinding
+        this.state.currentState = 'idle';
+      }
+    } else {
+      // Travel to quest giver first
+      this.travelTo(destination.coords, 'Traveling to quest giver');
+    }
+  }
+
+  /**
+   * Continue grinding for quest objectives
+   */
+  private continueGrinding(): void {
+    const nextSpot = this.executor.getNextGrindSpot(this.state.character.position);
+    
+    if (!nextSpot) {
+      this.log('⚠️  No more grind spots available');
+      // Try to complete quest anyway
+      if (this.executor.isQuestComplete()) {
+        this.returnToQuestGiver();
+      }
+      return;
+    }
+
+    // Travel to grind spot
+    const distance = Math.sqrt(
+      Math.pow(nextSpot.position.x - this.state.character.position.x, 2) +
+      Math.pow(nextSpot.position.y - this.state.character.position.y, 2)
+    );
+
+    if (distance > 1) {
+      this.travelTo(nextSpot.position, `Traveling to grind spot (${distance.toFixed(1)} yards)`);
+    } else {
+      // Already at spawn point, check for mob
+      this.checkForMob(nextSpot);
+    }
+  }
+
+  /**
+   * Check for mob at current location and engage
+   */
+  private checkForMob(grindSpot: GrindSpot): void {
+    // 50% chance mob is present
+    const mobPresent = Math.random() < 0.5;
+    
+    if (mobPresent) {
+      this.log(`⚔️  Found ${grindSpot.creatureName}! Engaging in combat...`);
+      
+      // Start combat (5-10 seconds)
+      const combatDuration = (5 + Math.random() * 5) * 1000;
+      this.state.currentState = 'combat';
+      this.state.combatStartTime = Date.now();
+      this.state.combatEndTime = Date.now() + combatDuration;
+
+      // Schedule kill registration
+      setTimeout(() => {
+        if (this.state.currentState === 'idle') {
+          this.executor.registerKill(grindSpot.creatureId);
+          const progress = this.executor.getQuestProgress();
+          const objective = progress?.objectives[0];
+          if (objective) {
+            this.log(`📊 Progress: ${objective.current}/${objective.required} ${objective.creatureName}`);
+          }
+        }
+      }, combatDuration);
+    } else {
+      this.log('✗ No mob at this spawn point');
+      // Continue to next spot
+      this.state.currentState = 'idle';
+    }
+  }
+
+  /**
+   * Return to quest giver to turn in quest
+   */
+  private returnToQuestGiver(): void {
+    if (!this.state.currentQuest) return;
+
+    const quest = this.db.getQuest(this.state.currentQuest.questId);
+    if (!quest) return;
+
+    // Get quest ender position (usually same as quest giver)
+    const questEnder = this.db.getCreatureSpawns(quest.RewOrReqMoney > 0 ? 
+      (quest.SrcSpell || quest.entry) : quest.entry)[0];
+    
+    if (questEnder) {
+      const destination: Position = {
+        x: questEnder.position_x,
+        y: questEnder.position_y,
+        z: questEnder.position_z,
+        map: questEnder.map,
+      };
+
+      this.log(`🎉 Quest objectives complete! Returning to turn in...`);
+      this.state.currentState = 'turning-in-quest';
+      this.travelTo(destination, 'Returning to quest giver');
+    }
+  }
+
+  /**
+   * Travel to destination
+   */
+  private travelTo(destination: Position, message: string): void {
+    const travelInfo = calculateTravelTime(
+      this.state.character.position,
+      destination,
+      MOVEMENT_SPEEDS.RUN
+    );
+
+    this.log(`🚶 ${message} (${travelInfo.distance.toFixed(1)} yards, ${Math.floor(travelInfo.travelTimeSeconds)}s)`);
+
+    this.state.currentState = 'traveling';
+    this.state.currentDestination = destination;
+    this.state.travelStartTime = Date.now();
+    this.state.travelEndTime = Date.now() + (travelInfo.travelTimeSeconds * 1000);
+  }
+
+  /**
+   * Add log entry
+   */
+  private log(message: string): void {
+    const timestamp = new Date().toLocaleTimeString();
+    const logEntry = `[${timestamp}] ${message}`;
+    this.state.actionLog.push(logEntry);
+    console.log(logEntry);
+
+    // Keep only last 100 logs
+    if (this.state.actionLog.length > 100) {
+      this.state.actionLog.shift();
+    }
+  }
+
+  /**
+   * Notify state change
+   */
+  private notifyStateChange(): void {
+    if (this.onStateChange) {
+      this.onStateChange({ ...this.state });
+    }
+  }
+
+  /**
+   * Get current state
+   */
+  getState(): GameEngineState {
+    return { ...this.state };
+  }
+}
