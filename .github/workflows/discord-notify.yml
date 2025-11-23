@@ -64,13 +64,9 @@ jobs:
             exit 0
           fi
           
-          echo "🔍 DEBUG: Webhook URL is set (length: ${#WEBHOOK_URL})"
-          
           # Prepare commit message (escape quotes)
           COMMIT_MSG='${{ steps.commit_info.outputs.commit_msg }}'
           COMMIT_MSG_ESCAPED=$(echo "$COMMIT_MSG" | jq -R -s '.')
-          
-          echo "🔍 DEBUG: Commit message prepared"
           
           # Prepare changed files list
           CHANGED_FILES='${{ steps.commit_info.outputs.changed_files }}'
@@ -122,11 +118,6 @@ jobs:
           EOF
           )
           
-          echo "🔍 DEBUG: Payload prepared, sending to Discord..."
-          echo "Payload preview (first 500 chars):"
-          echo "$EMBED" | head -c 500
-          echo ""
-          
           # Send to Discord
           RESPONSE=$(curl -s -w "\n%{http_code}" -H "Content-Type: application/json" \
                -X POST \
@@ -134,15 +125,10 @@ jobs:
                "$WEBHOOK_URL")
           
           HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-          RESPONSE_BODY=$(echo "$RESPONSE" | head -n-1)
-          
-          echo "🔍 DEBUG: HTTP Status Code: $HTTP_CODE"
-          echo "🔍 DEBUG: Response Body: $RESPONSE_BODY"
           
           if [ "$HTTP_CODE" -eq 204 ] || [ "$HTTP_CODE" -eq 200 ]; then
             echo "✅ Discord notification sent successfully"
           else
             echo "❌ Discord webhook failed with status $HTTP_CODE"
-            echo "Response: $RESPONSE_BODY"
             exit 1
           fi
