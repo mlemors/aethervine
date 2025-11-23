@@ -21,6 +21,7 @@
     "post-discord": "node tools/discord_post.js"
   },
   "dependencies": {
+    "better-sqlite3": "^12.4.6",
     "idb": "^8.0.3",
     "phaser": "^3.90.0",
     "react": "^19.2.0",
@@ -30,6 +31,7 @@
   "devDependencies": {
     "@eslint/js": "^9.39.1",
     "@tailwindcss/postcss": "^4.1.17",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
