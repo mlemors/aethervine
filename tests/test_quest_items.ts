@@ -40,8 +40,9 @@ for (const entry of lootTable) {
 
 console.log('\n--- Test 1: Kill WITHOUT Quest Active ---');
 let drops = 0;
+const itemCounts = new Map<number, number>();
 for (let i = 0; i < 10; i++) {
-  const loot = lootSystem.generateMobLoot(creatureId, 5, []); // No active quests
+  const loot = lootSystem.generateMobLoot(creatureId, 5, [], itemCounts); // No active quests
   if (loot.items.length > 0) {
     drops++;
     for (const drop of loot.items) {
@@ -53,8 +54,9 @@ console.log(`Total drops: ${drops}/10 kills`);
 
 console.log('\n--- Test 2: Kill WITH Quest Active (Quest 6) ---');
 let questItemDrops = 0;
+const itemCounts2 = new Map<number, number>();
 for (let i = 0; i < 10; i++) {
-  const loot = lootSystem.generateMobLoot(creatureId, 5, [questId]); // Quest 6 active
+  const loot = lootSystem.generateMobLoot(creatureId, 5, [questId], itemCounts2); // Quest 6 active
   if (loot.items.length > 0) {
     for (const drop of loot.items) {
       console.log(`  Kill ${i + 1}: ${drop.item.name} ${drop.isQuestItem ? '🎯 (QUEST ITEM!)' : ''}`);
@@ -67,8 +69,9 @@ console.log(`Quest items dropped: ${questItemDrops}/10 kills`);
 console.log('\n--- Test 3: Different Quest - Should NOT Drop ---');
 const wrongQuestId = 7; // Different quest
 let wrongQuestDrops = 0;
+const itemCounts3 = new Map<number, number>();
 for (let i = 0; i < 10; i++) {
-  const loot = lootSystem.generateMobLoot(creatureId, 5, [wrongQuestId]);
+  const loot = lootSystem.generateMobLoot(creatureId, 5, [wrongQuestId], itemCounts3);
   if (loot.items.length > 0) {
     for (const drop of loot.items) {
       if (drop.isQuestItem) {
@@ -95,9 +98,10 @@ if (quest11) {
 
   let armbandCount = 0;
   const killsNeeded = [];
+  const itemCounts4 = new Map<number, number>();
   
   for (let i = 0; i < 100; i++) {
-    const loot = lootSystem.generateMobLoot(runtId, 5, [11]);
+    const loot = lootSystem.generateMobLoot(runtId, 5, [11], itemCounts4);
     for (const drop of loot.items) {
       if (drop.isQuestItem && drop.item.entry === 782) {
         armbandCount += drop.count;

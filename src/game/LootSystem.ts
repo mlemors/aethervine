@@ -23,11 +23,13 @@ export class LootSystem {
    * @param creatureId The mob that was killed
    * @param playerLevel Player's current level
    * @param activeQuestIds List of quest IDs the player currently has active
+   * @param itemCounts Current inventory item counts (optional, for quest item limits)
    */
   generateMobLoot(
     creatureId: number, 
     playerLevel: number,
-    activeQuestIds: number[] = []
+    activeQuestIds: number[] = [],
+    itemCounts: Map<number, number> = new Map()
   ): LootResult {
     const lootTable = this.db.getLootTable(creatureId);
     const drops: LootDrop[] = [];
@@ -66,7 +68,8 @@ export class LootSystem {
       if (isQuestItem) {
         const playerNeedsItem = this.playerNeedsQuestItem(
           lootEntry.item,
-          activeQuestIds
+          activeQuestIds,
+          itemCounts
         );
         
         if (!playerNeedsItem) {
@@ -103,8 +106,15 @@ export class LootSystem {
 
   /**
    * Check if player needs this quest item for any active quest
+   * @param itemId The item to check
+   * @param activeQuestIds List of active quest IDs
+   * @param itemCounts Current inventory counts (to check if player has enough already)
    */
-  private playerNeedsQuestItem(itemId: number, activeQuestIds: number[]): boolean {
+  private playerNeedsQuestItem(
+    itemId: number, 
+    activeQuestIds: number[], 
+    itemCounts: Map<number, number> = new Map()
+  ): boolean {
     if (activeQuestIds.length === 0) return false;
 
     // Check each active quest to see if it requires this item
@@ -115,13 +125,19 @@ export class LootSystem {
       // Check all 6 possible item requirements
       for (let i = 1; i <= 6; i++) {
         const reqItemId = quest[`ReqItemId${i}`];
+        const reqCount = quest[`ReqItemCount${i}`];
+        
         if (reqItemId === itemId) {
-          return true;
+          // Check if player already has enough of this item
+          const currentCount = itemCounts.get(itemId) || 0;
+          if (currentCount < reqCount) {
+            return true; // Still needs more of this item
+          }
         }
       }
     }
 
-    return false;
+    return false; // Either not required or already has enough
   }
 
   /**

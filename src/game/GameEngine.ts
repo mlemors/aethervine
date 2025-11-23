@@ -394,11 +394,15 @@ export class GameEngine {
       activeQuestIds.push(this.state.currentQuest.questId);
     }
 
+    // Get current item counts for quest item limits
+    const itemCounts = this.inventorySystem.getItemCounts(this.state.inventory);
+
     // Generate loot with quest awareness
     const lootResult = this.lootSystem.generateMobLoot(
       this.state.currentMobId,
       this.state.character.level,
-      activeQuestIds
+      activeQuestIds,
+      itemCounts
     );
 
     // Add gold
