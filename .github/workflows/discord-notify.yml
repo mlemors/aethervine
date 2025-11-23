@@ -64,13 +64,8 @@ jobs:
             exit 0
           fi
           
-          # Install jq for JSON processing
-          sudo apt-get update -qq
-          sudo apt-get install -y jq
-          
-          # Prepare commit message (escape quotes)
+          # Prepare commit message
           COMMIT_MSG='${{ steps.commit_info.outputs.commit_msg }}'
-          COMMIT_MSG_ESCAPED=$(echo "$COMMIT_MSG" | jq -R -s '.')
           
           # Prepare changed files list
           CHANGED_FILES='${{ steps.commit_info.outputs.changed_files }}'
@@ -92,7 +87,7 @@ jobs:
             "content": null,
             "embeds": [{
               "title": "⚔️ Aethervine - New Commit",
-              "description": $COMMIT_MSG_ESCAPED,
+              "description": "$COMMIT_MSG",
               "color": 15844367,
               "fields": [
                 {
