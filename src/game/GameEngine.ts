@@ -6,8 +6,10 @@ import { QuestNavigator } from './QuestNavigator';
 import { QuestExecutor, type QuestProgress, type GrindSpot } from './QuestExecutor';
 import { calculateTravelTime, MOVEMENT_SPEEDS, type Position } from './MovementSystem';
 import { getDatabase } from '../data/sqlite_loader';
+import { getZoneManager, type Zone, type POI } from './ZoneManager';
 
 export type GameState = 'idle' | 'traveling' | 'combat' | 'looting' | 'turning-in-quest';
+export type GameMode = 'auto' | 'manual';
 
 export interface Character {
   name: string;
@@ -20,14 +22,19 @@ export interface Character {
 
 export interface GameEngineState {
   character: Character;
+  mode: GameMode;
   currentState: GameState;
+  currentZone: string | null;
   currentQuest: QuestProgress | null;
   currentDestination: Position | null;
+  destinationName: string | null;
   travelStartTime: number | null;
   travelEndTime: number | null;
   combatStartTime: number | null;
   combatEndTime: number | null;
   actionLog: string[];
+  availableActions: string[];
+  isPaused: boolean;
 }
 
 /**
@@ -37,6 +44,7 @@ export class GameEngine {
   private state: GameEngineState;
   private navigator: QuestNavigator;
   private executor: QuestExecutor;
+  private zoneManager = getZoneManager();
   private db = getDatabase();
   private updateInterval: NodeJS.Timeout | null = null;
   private onStateChange?: (state: GameEngineState) => void;
@@ -44,14 +52,19 @@ export class GameEngine {
   constructor(character: Character, onStateChange?: (state: GameEngineState) => void) {
     this.state = {
       character,
+      mode: 'manual',
       currentState: 'idle',
+      currentZone: null,
       currentQuest: null,
       currentDestination: null,
+      destinationName: null,
       travelStartTime: null,
       travelEndTime: null,
       combatStartTime: null,
       combatEndTime: null,
       actionLog: [],
+      availableActions: [],
+      isPaused: false,
     };
 
     this.navigator = new QuestNavigator();
@@ -74,11 +87,20 @@ export class GameEngine {
     this.log(`🎮 Game Engine started for ${this.state.character.name}`);
     this.log(`📍 Starting position: (${this.state.character.position.x.toFixed(1)}, ${this.state.character.position.y.toFixed(1)})`);
     
+    // Update zone
+    this.updateZone();
+    
     // Update every second
     this.updateInterval = setInterval(() => this.update(), 1000);
     
-    // Start first quest
-    this.startNextQuest();
+    // In manual mode, just show available actions
+    if (this.state.mode === 'manual') {
+      this.log(`⏸️  Manual mode - waiting for player input`);
+      this.updateAvailableActions();
+    } else {
+      // Auto mode: Start first quest
+      this.startNextQuest();
+    }
   }
 
   /**
@@ -98,6 +120,9 @@ export class GameEngine {
   private update(): void {
     const now = Date.now();
 
+    // Skip if paused
+    if (this.state.isPaused) return;
+
     switch (this.state.currentState) {
       case 'traveling':
         this.updateTravel(now);
@@ -112,12 +137,179 @@ export class GameEngine {
         break;
       
       case 'idle':
-        // If idle, check what to do next
-        this.decideNextAction();
+        // In auto mode, decide next action
+        if (this.state.mode === 'auto') {
+          this.decideNextAction();
+        }
         break;
     }
 
     this.notifyStateChange();
+  }
+
+  /**
+   * Update current zone based on position
+   */
+  private updateZone(): void {
+    const zone = this.zoneManager.getCurrentZone(this.state.character.position);
+    const newZone = zone?.nameDE || null;
+    
+    if (newZone !== this.state.currentZone) {
+      const oldZone = this.state.currentZone;
+      this.state.currentZone = newZone;
+      
+      if (oldZone && newZone) {
+        this.log(`🗺️  Entered ${newZone}`);
+      } else if (newZone) {
+        this.log(`📍 Current zone: ${newZone}`);
+      }
+      
+      this.updateAvailableActions();
+    }
+  }
+
+  /**
+   * Update available actions based on current zone
+   */
+  private updateAvailableActions(): void {
+    const actions = this.zoneManager.getAvailableActions(this.state.character.position);
+    this.state.availableActions = actions;
+    
+    if (actions.length > 0 && this.state.mode === 'manual') {
+      this.log(`\n📋 Available actions:`);
+      actions.forEach((action, idx) => {
+        this.log(`  [${idx + 1}] ${action}`);
+      });
+    }
+  }
+
+  /**
+   * Pause/Resume game
+   */
+  pause(): void {
+    this.state.isPaused = true;
+    this.log('⏸️  Game paused');
+  }
+
+  resume(): void {
+    this.state.isPaused = false;
+    this.log('▶️  Game resumed');
+  }
+
+  /**
+   * Set game mode
+   */
+  setMode(mode: GameMode): void {
+    this.state.mode = mode;
+    this.log(`🎮 Mode changed to: ${mode}`);
+    
+    if (mode === 'auto') {
+      this.decideNextAction();
+    } else {
+      this.updateAvailableActions();
+    }
+  }
+
+  /**
+   * Execute manual action
+   */
+  executeAction(action: string): void {
+    if (this.state.currentState !== 'idle') {
+      this.log('⚠️  Cannot execute action while busy');
+      return;
+    }
+
+    this.log(`\n🎯 Executing: ${action}`);
+
+    switch (action) {
+      case 'Zum Gasthaus gehen':
+        this.goToInn();
+        break;
+      case 'Zum Klassenlehrer gehen':
+        this.goToClassTrainer();
+        break;
+      case 'Zum Berufslehrer gehen':
+        this.goToProfessionTrainer();
+        break;
+      case 'Zum Händler gehen':
+        this.goToVendor();
+        break;
+      case 'Mobs in der Nähe farmen':
+        this.farmNearbyMobs();
+        break;
+      case 'Quest annehmen/abgeben':
+        this.handleQuests();
+        break;
+      default:
+        this.log('❌ Unknown action');
+    }
+  }
+
+  /**
+   * Go to inn
+   */
+  private goToInn(): void {
+    const poi = this.zoneManager.findNearestPOI(this.state.character.position, 'inn');
+    if (poi) {
+      this.travelTo(poi.position, `Traveling to ${poi.nameDE}`);
+    } else {
+      this.log('❌ No inn found in this zone');
+    }
+  }
+
+  /**
+   * Go to class trainer
+   */
+  private goToClassTrainer(): void {
+    const poi = this.zoneManager.findNearestPOI(this.state.character.position, 'class-trainer');
+    if (poi) {
+      this.travelTo(poi.position, `Traveling to ${poi.nameDE}`);
+    } else {
+      this.log('❌ No class trainer found in this zone');
+    }
+  }
+
+  /**
+   * Go to profession trainer
+   */
+  private goToProfessionTrainer(): void {
+    const poi = this.zoneManager.findNearestPOI(this.state.character.position, 'profession-trainer');
+    if (poi) {
+      this.travelTo(poi.position, `Traveling to ${poi.nameDE}`);
+    } else {
+      this.log('❌ No profession trainer found in this zone');
+    }
+  }
+
+  /**
+   * Go to vendor
+   */
+  private goToVendor(): void {
+    const poi = this.zoneManager.findNearestPOI(this.state.character.position, 'vendor');
+    if (poi) {
+      this.travelTo(poi.position, `Traveling to ${poi.nameDE}`);
+    } else {
+      this.log('❌ No vendor found in this zone');
+    }
+  }
+
+  /**
+   * Farm nearby mobs
+   */
+  private farmNearbyMobs(): void {
+    this.log('🌾 Starting to farm nearby mobs...');
+    // TODO: Implement mob farming
+  }
+
+  /**
+   * Handle quests
+   */
+  private handleQuests(): void {
+    if (this.state.currentQuest && this.executor.isQuestComplete()) {
+      this.returnToQuestGiver();
+    } else {
+      this.startNextQuest();
+    }
   }
 
   /**
@@ -129,12 +321,21 @@ export class GameEngine {
     if (now >= this.state.travelEndTime) {
       // Arrived at destination
       this.state.character.position = { ...this.state.currentDestination };
-      this.log(`✓ Arrived at (${this.state.character.position.x.toFixed(1)}, ${this.state.character.position.y.toFixed(1)})`);
+      this.log(`✓ Arrived at ${this.state.destinationName || 'destination'}`);
+      
+      // Update zone
+      this.updateZone();
       
       this.state.travelStartTime = null;
       this.state.travelEndTime = null;
       this.state.currentDestination = null;
+      this.state.destinationName = null;
       this.state.currentState = 'idle';
+      
+      // In manual mode, show available actions
+      if (this.state.mode === 'manual') {
+        this.updateAvailableActions();
+      }
     }
   }
 
@@ -341,6 +542,7 @@ export class GameEngine {
 
     this.state.currentState = 'traveling';
     this.state.currentDestination = destination;
+    this.state.destinationName = message.replace('Traveling to ', '');
     this.state.travelStartTime = Date.now();
     this.state.travelEndTime = Date.now() + (travelInfo.travelTimeSeconds * 1000);
   }
@@ -374,5 +576,17 @@ export class GameEngine {
    */
   getState(): GameEngineState {
     return { ...this.state };
+  }
+
+  /**
+   * Travel to specific coordinates (for testing/manual control)
+   */
+  travelToCoordinates(position: Position, name: string): void {
+    if (this.state.currentState !== 'idle') {
+      this.log('⚠️  Cannot travel while busy');
+      return;
+    }
+
+    this.travelTo(position, `Traveling to ${name}`);
   }
 }
