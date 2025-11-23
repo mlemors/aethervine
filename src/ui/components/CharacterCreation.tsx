@@ -16,6 +16,7 @@ export const CharacterCreation = ({ onBack, onCharacterCreated }: CharacterCreat
   const [faction, setFaction] = useState<WoWFaction | null>(null);
   const [race, setRace] = useState<WoWRace | null>(null);
   const [wowClass, setWowClass] = useState<WoWClass | null>(null);
+  const [gender, setGender] = useState<'Male' | 'Female'>('Male');
   const [characterName, setCharacterName] = useState('');
   const [error, setError] = useState('');
 
@@ -134,6 +135,35 @@ export const CharacterCreation = ({ onBack, onCharacterCreated }: CharacterCreat
               )}
             </div>
 
+            {/* Gender Selection */}
+            <div className="mb-8">
+              <h3 className="text-xl font-bold text-wow-gold mb-4">CHOOSE GENDER</h3>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setGender('Male')}
+                  className={`flex-1 p-4 rounded-lg border-2 transition-all ${
+                    gender === 'Male'
+                      ? 'bg-wow-gold/20 border-wow-gold shadow-lg'
+                      : 'bg-gray-800/50 border-gray-600 hover:border-gray-500'
+                  }`}
+                >
+                  <div className="text-2xl mb-2">♂️</div>
+                  <div className="font-bold">Male</div>
+                </button>
+                <button
+                  onClick={() => setGender('Female')}
+                  className={`flex-1 p-4 rounded-lg border-2 transition-all ${
+                    gender === 'Female'
+                      ? 'bg-wow-gold/20 border-wow-gold shadow-lg'
+                      : 'bg-gray-800/50 border-gray-600 hover:border-gray-500'
+                  }`}
+                >
+                  <div className="text-2xl mb-2">♀️</div>
+                  <div className="font-bold">Female</div>
+                </button>
+              </div>
+            </div>
+
             {/* Class Selection */}
             <div>
               <h3 className="text-xl font-bold text-wow-gold mb-4">CHOOSE CLASS</h3>
@@ -180,6 +210,10 @@ export const CharacterCreation = ({ onBack, onCharacterCreated }: CharacterCreat
                     <div className="flex justify-between">
                       <span className="text-gray-400">Race:</span>
                       <span className="text-wow-gold font-semibold">{race}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Gender:</span>
+                      <span className="text-white font-semibold">{gender}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-400">Class:</span>
