@@ -7,6 +7,7 @@ import { QuestExecutor, type QuestProgress, type GrindSpot } from './QuestExecut
 import { calculateTravelTime, MOVEMENT_SPEEDS, type Position } from './MovementSystem';
 import { getDatabase } from '../data/sqlite_loader';
 import { getZoneManager, type Zone, type POI } from './ZoneManager';
+import { getExperienceSystem } from './ExperienceSystem';
 
 export type GameState = 'idle' | 'traveling' | 'combat' | 'looting' | 'turning-in-quest';
 export type GameMode = 'auto' | 'manual';
@@ -17,6 +18,7 @@ export interface Character {
   class: string;
   level: number;
   experience: number;
+  experienceToNext: number;
   position: Position;
 }
 
@@ -46,10 +48,19 @@ export class GameEngine {
   private executor: QuestExecutor;
   private zoneManager = getZoneManager();
   private db = getDatabase();
+  private xpSystem = getExperienceSystem();
   private updateInterval: NodeJS.Timeout | null = null;
   private onStateChange?: (state: GameEngineState) => void;
 
   constructor(character: Character, onStateChange?: (state: GameEngineState) => void) {
+    // Initialize experienceToNext if not set
+    if (!character.experienceToNext || character.experienceToNext === 0) {
+      character.experienceToNext = this.xpSystem.getXPToNextLevel(
+        character.level,
+        character.experience
+      );
+    }
+
     this.state = {
       character,
       mode: 'manual',
@@ -367,7 +378,12 @@ export class GameEngine {
         const success = this.executor.turnInQuest(this.state.currentQuest.questId);
         if (success) {
           this.log(`✓ Quest completed: ${this.state.currentQuest.questName}`);
-          // TODO: Add XP and rewards
+          
+          // Award quest XP reward
+          const quest = this.db.getQuest(this.state.currentQuest.questId);
+          if (quest && quest.RewXP > 0) {
+            this.awardExperience(quest.RewXP, this.state.currentQuest.questName);
+          }
         }
         this.state.currentQuest = null;
       }
@@ -486,7 +502,17 @@ export class GameEngine {
       // Schedule kill registration
       setTimeout(() => {
         if (this.state.currentState === 'idle') {
+          // Register kill
           this.executor.registerKill(grindSpot.creatureId);
+          
+          // Award XP for mob kill
+          const mobLevel = grindSpot.level || this.state.character.level;
+          const xpGained = this.xpSystem.calculateMobXP(mobLevel, this.state.character.level);
+          
+          if (xpGained > 0) {
+            this.awardExperience(xpGained, `${grindSpot.creatureName} (${mobLevel})`);
+          }
+          
           const progress = this.executor.getQuestProgress();
           const objective = progress?.objectives[0];
           if (objective) {
@@ -545,6 +571,48 @@ export class GameEngine {
     this.state.destinationName = message.replace('Traveling to ', '');
     this.state.travelStartTime = Date.now();
     this.state.travelEndTime = Date.now() + (travelInfo.travelTimeSeconds * 1000);
+  }
+
+  /**
+   * Award experience and handle level ups
+   */
+  private awardExperience(xpGained: number, source: string): void {
+    const oldLevel = this.state.character.level;
+
+    const result = this.xpSystem.addExperience(
+      this.state.character.level,
+      this.state.character.experience,
+      xpGained
+    );
+
+    this.state.character.experience = result.remainingXP;
+    this.state.character.level = result.newLevel;
+    this.state.character.experienceToNext = this.xpSystem.getXPToNextLevel(
+      result.newLevel,
+      result.remainingXP
+    );
+
+    // Log XP gain
+    const stats = this.xpSystem.getExperienceStats(result.newLevel, result.remainingXP);
+    this.log(`+${xpGained} XP from ${source} (${stats.xpIntoLevel}/${stats.xpNeeded})`);
+
+    // Handle level up(s)
+    if (result.levelsGained > 0) {
+      this.handleLevelUp(oldLevel, result.newLevel);
+    }
+  }
+
+  /**
+   * Handle level up (one or more levels)
+   */
+  private handleLevelUp(oldLevel: number, newLevel: number): void {
+    for (let level = oldLevel + 1; level <= newLevel; level++) {
+      this.log(`🎉 LEVEL UP! You are now level ${level}!`);
+      
+      // Simple stat increases per level (placeholder - can be expanded)
+      // In real WoW, this depends on class
+      // For now: +10 HP, +5 Mana per level
+    }
   }
 
   /**

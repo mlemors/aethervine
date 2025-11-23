@@ -109,6 +109,11 @@ export interface PlayerCreateInfo {
   orientation: number;
 }
 
+export interface XPForLevel {
+  lvl: number;
+  xp_for_next_level: number;
+}
+
 /**
  * SQLite Datenbank Loader für WoW Classic Daten
  */
@@ -282,6 +287,16 @@ export class GameDatabase {
   questExists(questId: number): boolean {
     const stmt = this.db.prepare(`SELECT 1 FROM quest_template WHERE entry = ? LIMIT 1`);
     return stmt.get(questId) !== undefined;
+  }
+
+  /**
+   * Hole XP Requirements für alle Level (1-60)
+   */
+  getPlayerXPForLevel(): XPForLevel[] {
+    const stmt = this.db.prepare(`
+      SELECT lvl, xp_for_next_level FROM player_xp_for_level ORDER BY lvl
+    `);
+    return stmt.all() as XPForLevel[];
   }
 
   /**
