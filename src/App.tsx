@@ -7,12 +7,9 @@ import { StartScreen } from './ui/components/StartScreen';
 import { LoginScreen } from './ui/components/LoginScreen';
 import { CharacterSelection } from './ui/components/CharacterSelection';
 import { CharacterCreation } from './ui/components/CharacterCreation';
-import { GameContainer } from './ui/components/GameContainer';
-import { HUD } from './ui/components/HUD';
-import { ControlPanel } from './ui/components/ControlPanel';
+import { GameUI } from './ui/components/GameUI';
 import { useAccountStore } from './ui/stores/accountStore';
 import { useCharacterStore } from './ui/stores/characterStore';
-import { useGameStore } from './ui/stores/gameStore';
 
 type Screen = 'start' | 'login' | 'character-select' | 'character-creation' | 'game';
 
@@ -21,7 +18,6 @@ function App() {
   const currentAccount = useAccountStore((state) => state.currentAccount);
   const logout = useAccountStore((state) => state.logout);
   const character = useCharacterStore((state) => state.character);
-  const start = useGameStore((state) => state.start);
 
   // Auto-navigate to character select if logged in
   useEffect(() => {
@@ -48,7 +44,6 @@ function App() {
 
   const handleCharacterSelected = () => {
     setCurrentScreen('game');
-    start();
   };
 
   const handleBackToCharacterSelect = () => {
@@ -98,13 +93,7 @@ function App() {
         );
       }
 
-      return (
-        <div className="w-screen h-screen relative overflow-hidden bg-gray-900">
-          <GameContainer />
-          <HUD />
-          <ControlPanel />
-        </div>
-      );
+      return <GameUI />;
 
     default:
       return null;
