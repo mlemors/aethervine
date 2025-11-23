@@ -1,0 +1,36 @@
+{
+  "name": "aethervine",
+  "version": "0.1.0",
+  "private": true,
+  "description": "WoW Classic Idle RPG built with TypeScript, React & Phaser 3",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "test": "vitest",
+    "test:coverage": "vitest --coverage",
+    "post-discord": "node tools/discord_post.js"
+  },
+  "keywords": [
+    "wow",
+    "classic",
+    "idle",
+    "rpg",
+    "game",
+    "phaser",
+    "react"
+  ],
+  "author": "mlemors",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mlemors/aethervine.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mlemors/aethervine/issues"
+  },
+  "homepage": "https://github.com/mlemors/aethervine#readme"
+}

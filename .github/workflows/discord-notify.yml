@@ -1,0 +1,127 @@
+name: Discord Notification
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      message:
+        description: 'Custom message to send to Discord'
+        required: false
+        default: 'Manual workflow trigger'
+
+jobs:
+  notify-discord:
+    runs-on: ubuntu-latest
+    name: Send commit info to Discord
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # Fetch at least 2 commits for diff
+      
+      - name: Get commit info
+        id: commit_info
+        run: |
+          # Get commit message
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          echo "commit_msg<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMMIT_MSG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          # Get commit author
+          COMMIT_AUTHOR=$(git log -1 --pretty=%an)
+          echo "commit_author=$COMMIT_AUTHOR" >> $GITHUB_OUTPUT
+          
+          # Get commit SHA (short)
+          COMMIT_SHA=$(git log -1 --pretty=%h)
+          echo "commit_sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
+          
+          # Get changed files
+          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD | head -10)
+          echo "changed_files<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGED_FILES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          # Count files changed
+          FILES_COUNT=$(git diff --name-only HEAD~1 HEAD | wc -l | xargs)
+          echo "files_count=$FILES_COUNT" >> $GITHUB_OUTPUT
+          
+          # Get stats (insertions/deletions)
+          STATS=$(git diff --shortstat HEAD~1 HEAD)
+          echo "stats=$STATS" >> $GITHUB_OUTPUT
+      
+      - name: Send to Discord
+        env:
+          WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          if [ -z "$WEBHOOK_URL" ]; then
+            echo "⚠️ DISCORD_WEBHOOK_URL secret is not set. Skipping notification."
+            echo "To enable Discord notifications:"
+            echo "1. Create a webhook in your Discord channel"
+            echo "2. Add it as a repository secret named DISCORD_WEBHOOK_URL"
+            exit 0
+          fi
+          
+          # Prepare commit message (escape quotes)
+          COMMIT_MSG='${{ steps.commit_info.outputs.commit_msg }}'
+          COMMIT_MSG_ESCAPED=$(echo "$COMMIT_MSG" | jq -R -s '.')
+          
+          # Prepare changed files list
+          CHANGED_FILES='${{ steps.commit_info.outputs.changed_files }}'
+          if [ ! -z "$CHANGED_FILES" ]; then
+            FILES_LIST=$(echo "$CHANGED_FILES" | head -10 | sed 's/^/• /')
+            if [ "${{ steps.commit_info.outputs.files_count }}" -gt 10 ]; then
+              FILES_LIST="$FILES_LIST\n... and $(($${{ steps.commit_info.outputs.files_count }} - 10)) more files"
+            fi
+          else
+            FILES_LIST="No files changed"
+          fi
+          
+          # Build Discord embed
+          EMBED=$(cat <<EOF
+          {
+            "content": null,
+            "embeds": [{
+              "title": "⚔️ Aethervine - New Commit",
+              "description": $COMMIT_MSG_ESCAPED,
+              "color": 15844367,
+              "fields": [
+                {
+                  "name": "👤 Author",
+                  "value": "${{ steps.commit_info.outputs.commit_author }}",
+                  "inline": true
+                },
+                {
+                  "name": "📝 Commit",
+                  "value": "[\`${{ steps.commit_info.outputs.commit_sha }}\`](https://github.com/${{ github.repository }}/commit/${{ github.sha }})",
+                  "inline": true
+                },
+                {
+                  "name": "📊 Stats",
+                  "value": "${{ steps.commit_info.outputs.stats }}",
+                  "inline": false
+                },
+                {
+                  "name": "📁 Changed Files (${{ steps.commit_info.outputs.files_count }})",
+                  "value": "$(echo "$FILES_LIST" | head -c 1024)",
+                  "inline": false
+                }
+              ],
+              "footer": {
+                "text": "Branch: ${{ github.ref_name }}"
+              },
+              "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
+            }]
+          }
+          EOF
+          )
+          
+          # Send to Discord
+          curl -H "Content-Type: application/json" \
+               -X POST \
+               -d "$EMBED" \
+               "$WEBHOOK_URL"
+          
+          echo "✅ Discord notification sent successfully"
