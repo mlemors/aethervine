@@ -229,6 +229,16 @@ export class GameDatabase {
   }
 
   /**
+   * Hole Reference Loot Table (für gemeinsame Loot-Pools)
+   */
+  getReferenceLootTable(referenceId: number): LootEntry[] {
+    const stmt = this.db.prepare(`
+      SELECT * FROM reference_loot_template WHERE entry = ?
+    `);
+    return stmt.all(referenceId) as LootEntry[];
+  }
+
+  /**
    * Hole Item Details
    */
   getItem(itemId: number): Item | null {

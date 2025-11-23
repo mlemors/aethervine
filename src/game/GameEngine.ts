@@ -8,6 +8,8 @@ import { calculateTravelTime, MOVEMENT_SPEEDS, type Position } from './MovementS
 import { getDatabase } from '../data/sqlite_loader';
 import { getZoneManager, type Zone, type POI } from './ZoneManager';
 import { getExperienceSystem } from './ExperienceSystem';
+import { getLootSystem } from './LootSystem';
+import { getInventorySystem, type InventoryState } from './InventorySystem';
 
 export type GameState = 'idle' | 'traveling' | 'combat' | 'looting' | 'turning-in-quest';
 export type GameMode = 'auto' | 'manual';
@@ -24,12 +26,14 @@ export interface Character {
 
 export interface GameEngineState {
   character: Character;
+  inventory: InventoryState;
   mode: GameMode;
   currentState: GameState;
   currentZone: string | null;
   currentQuest: QuestProgress | null;
   currentDestination: Position | null;
   destinationName: string | null;
+  currentMobId: number | null;
   travelStartTime: number | null;
   travelEndTime: number | null;
   combatStartTime: number | null;
@@ -49,6 +53,8 @@ export class GameEngine {
   private zoneManager = getZoneManager();
   private db = getDatabase();
   private xpSystem = getExperienceSystem();
+  private lootSystem = getLootSystem();
+  private inventorySystem = getInventorySystem();
   private updateInterval: NodeJS.Timeout | null = null;
   private onStateChange?: (state: GameEngineState) => void;
 
@@ -63,12 +69,14 @@ export class GameEngine {
 
     this.state = {
       character,
+      inventory: this.inventorySystem.createInventory(),
       mode: 'manual',
       currentState: 'idle',
       currentZone: null,
       currentQuest: null,
       currentDestination: null,
       destinationName: null,
+      currentMobId: null,
       travelStartTime: null,
       travelEndTime: null,
       combatStartTime: null,
@@ -141,6 +149,10 @@ export class GameEngine {
       
       case 'combat':
         this.updateCombat(now);
+        break;
+
+      case 'looting':
+        this.updateLooting();
         break;
       
       case 'turning-in-quest':
@@ -360,10 +372,46 @@ export class GameEngine {
       // Combat finished
       this.log('💀 Enemy defeated!');
       
+      // Transition to looting state
       this.state.combatStartTime = null;
       this.state.combatEndTime = null;
-      this.state.currentState = 'idle';
+      this.state.currentState = 'looting';
     }
+  }
+
+  /**
+   * Update Looting State
+   */
+  private updateLooting(): void {
+    if (!this.state.currentMobId) {
+      this.state.currentState = 'idle';
+      return;
+    }
+
+    // Generate loot
+    const lootResult = this.lootSystem.generateMobLoot(
+      this.state.currentMobId,
+      this.state.character.level
+    );
+
+    // Add gold
+    if (lootResult.gold > 0) {
+      this.inventorySystem.addGold(this.state.inventory, lootResult.gold);
+      this.log(`💰 Looted ${this.inventorySystem.formatGold(lootResult.gold)}`);
+    }
+
+    // Add items
+    if (lootResult.items.length > 0) {
+      for (const drop of lootResult.items) {
+        this.inventorySystem.addItem(this.state.inventory, drop.item, drop.count);
+        
+        const countStr = drop.count > 1 ? ` x${drop.count}` : '';
+        this.log(`📦 Looted: ${drop.item.name}${countStr} ${drop.isQuestItem ? '(Quest)' : ''}`);
+      }
+    }
+
+    this.state.currentMobId = null;
+    this.state.currentState = 'idle';
   }
 
   /**
@@ -381,8 +429,27 @@ export class GameEngine {
           
           // Award quest XP reward
           const quest = this.db.getQuest(this.state.currentQuest.questId);
-          if (quest && quest.RewXP > 0) {
-            this.awardExperience(quest.RewXP, this.state.currentQuest.questName);
+          if (quest) {
+            if (quest.RewXP > 0) {
+              this.awardExperience(quest.RewXP, this.state.currentQuest.questName);
+            }
+
+            // Award quest gold reward
+            const goldReward = this.lootSystem.getQuestGoldReward(this.state.currentQuest.questId);
+            if (goldReward > 0) {
+              this.inventorySystem.addGold(this.state.inventory, goldReward);
+              this.log(`💰 Received ${this.inventorySystem.formatGold(goldReward)} reward`);
+            }
+
+            // Award quest item rewards
+            const itemRewards = this.lootSystem.getQuestRewards(this.state.currentQuest.questId);
+            if (itemRewards.length > 0) {
+              this.inventorySystem.addLoot(this.state.inventory, itemRewards);
+              for (const reward of itemRewards) {
+                const countStr = reward.count > 1 ? ` x${reward.count}` : '';
+                this.log(`🎁 Received: ${reward.item.name}${countStr}`);
+              }
+            }
           }
         }
         this.state.currentQuest = null;
@@ -493,15 +560,18 @@ export class GameEngine {
     if (mobPresent) {
       this.log(`⚔️  Found ${grindSpot.creatureName}! Engaging in combat...`);
       
+      // Track mob for looting
+      this.state.currentMobId = grindSpot.creatureId;
+      
       // Start combat (5-10 seconds)
       const combatDuration = (5 + Math.random() * 5) * 1000;
       this.state.currentState = 'combat';
       this.state.combatStartTime = Date.now();
       this.state.combatEndTime = Date.now() + combatDuration;
 
-      // Schedule kill registration
+      // Schedule kill registration (after combat ends and looting finishes)
       setTimeout(() => {
-        if (this.state.currentState === 'idle') {
+        if (this.state.currentState === 'idle' && this.state.currentMobId === null) {
           // Register kill
           this.executor.registerKill(grindSpot.creatureId);
           
@@ -519,7 +589,7 @@ export class GameEngine {
             this.log(`📊 Progress: ${objective.current}/${objective.required} ${objective.creatureName}`);
           }
         }
-      }, combatDuration);
+      }, combatDuration + 100); // Small delay to allow looting to complete
     } else {
       this.log('✗ No mob at this spawn point');
       // Continue to next spot
