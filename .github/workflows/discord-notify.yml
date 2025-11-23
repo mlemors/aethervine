@@ -64,18 +64,16 @@ jobs:
             exit 0
           fi
           
-          # Prepare commit message
+          # Prepare commit message (escape quotes)
           COMMIT_MSG='${{ steps.commit_info.outputs.commit_msg }}'
+          COMMIT_MSG_ESCAPED=$(echo "$COMMIT_MSG" | jq -R -s '.')
           
           # Prepare changed files list
           CHANGED_FILES='${{ steps.commit_info.outputs.changed_files }}'
-          FILES_COUNT='${{ steps.commit_info.outputs.files_count }}'
-          
-          if [ -n "$CHANGED_FILES" ]; then
+          if [ ! -z "$CHANGED_FILES" ]; then
             FILES_LIST=$(echo "$CHANGED_FILES" | head -10 | sed 's/^/• /')
-            if [ -n "$FILES_COUNT" ] && [ "$FILES_COUNT" -gt 10 ] 2>/dev/null; then
-              REMAINING=$((FILES_COUNT - 10))
-              FILES_LIST="$FILES_LIST\n... and $REMAINING more files"
+            if [ "${{ steps.commit_info.outputs.files_count }}" -gt 10 ]; then
+              FILES_LIST="$FILES_LIST\n... and $(($${{ steps.commit_info.outputs.files_count }} - 10)) more files"
             fi
           else
             FILES_LIST="No files changed"
@@ -87,7 +85,7 @@ jobs:
             "content": null,
             "embeds": [{
               "title": "⚔️ Aethervine - New Commit",
-              "description": "$COMMIT_MSG",
+              "description": $COMMIT_MSG_ESCAPED,
               "color": 15844367,
               "fields": [
                 {
