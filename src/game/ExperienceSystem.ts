@@ -2,7 +2,7 @@
  * Experience System - Handles XP, Leveling, and Level Requirements
  */
 
-import { getDatabase } from '../data/sqlite_loader';
+import { getDatabase } from '../data/database';
 
 /**
  * XP Table will be loaded from database

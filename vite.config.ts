@@ -14,14 +14,25 @@ export default defineConfig({
       '@data': path.resolve(__dirname, './src/data'),
       '@types': path.resolve(__dirname, './src/types'),
       '@utils': path.resolve(__dirname, './src/utils'),
+      // Redirect old sqlite_loader to new web version
+      './sqlite_loader': path.resolve(__dirname, './src/data/sqlite_loader_web'),
     },
+  },
+  optimizeDeps: {
+    exclude: ['sql.js', 'better-sqlite3'],
   },
   server: {
     port: 5173,
     open: true,
+    fs: {
+      strict: false, // Allow serving files from parent directories
+    },
   },
   build: {
     outDir: 'dist',
     sourcemap: true,
+    rollupOptions: {
+      external: ['better-sqlite3'],
+    },
   },
 })

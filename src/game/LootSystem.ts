@@ -2,7 +2,7 @@
  * Loot System - Handles mob loot generation and quest rewards
  */
 
-import { getDatabase, type Item } from '../data/sqlite_loader';
+import { getDatabase, type Item } from '../data/database';
 
 export interface LootDrop {
   item: Item;

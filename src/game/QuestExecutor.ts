@@ -3,7 +3,7 @@
  * Flow: Accept Quest -> Find Grind Spots -> Kill Mobs -> Return Quest
  */
 
-import { getDatabase } from '../data/sqlite_loader';
+import { getDatabase } from '../data/database';
 import { calculateDistance, type Position } from './MovementSystem';
 
 export interface QuestObjective {

@@ -5,7 +5,7 @@
 import { QuestNavigator } from './QuestNavigator';
 import { QuestExecutor, type QuestProgress, type GrindSpot } from './QuestExecutor';
 import { calculateTravelTime, MOVEMENT_SPEEDS, type Position } from './MovementSystem';
-import { getDatabase } from '../data/sqlite_loader';
+import { getDatabase } from '../data/database';
 import { getZoneManager, type Zone, type POI } from './ZoneManager';
 import { getExperienceSystem } from './ExperienceSystem';
 import { getLootSystem } from './LootSystem';
@@ -212,11 +212,13 @@ export class GameEngine {
   pause(): void {
     this.state.isPaused = true;
     this.log('⏸️  Game paused');
+    this.notifyStateChange();
   }
 
   resume(): void {
     this.state.isPaused = false;
     this.log('▶️  Game resumed');
+    this.notifyStateChange();
   }
 
   /**
@@ -358,6 +360,11 @@ export class GameEngine {
       // In manual mode, show available actions
       if (this.state.mode === 'manual') {
         this.updateAvailableActions();
+      }
+      
+      // In auto mode, continue to next action
+      if (this.state.mode === 'auto' && !this.state.isPaused) {
+        setTimeout(() => this.decideNextAction(), 500);
       }
     }
   }

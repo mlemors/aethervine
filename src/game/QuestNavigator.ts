@@ -3,7 +3,7 @@
  */
 
 import { getGuideLoader } from './GuideLoader';
-import { getDatabase } from '../data/sqlite_loader';
+import { getDatabase } from '../data/database';
 import { calculateTravelTime, formatTravelTime, MOVEMENT_SPEEDS, type Position, type TravelInfo } from './MovementSystem';
 import type { WoWRace } from '../types/character';
 

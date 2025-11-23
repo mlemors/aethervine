@@ -2,7 +2,7 @@
  * Inventory and Equipment System
  */
 
-import type { Item } from '../data/sqlite_loader';
+import type { Item } from '../data/database';
 import { getLootSystem, type LootDrop } from './LootSystem';
 
 /**
