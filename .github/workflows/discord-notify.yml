@@ -72,8 +72,10 @@ jobs:
           CHANGED_FILES='${{ steps.commit_info.outputs.changed_files }}'
           if [ ! -z "$CHANGED_FILES" ]; then
             FILES_LIST=$(echo "$CHANGED_FILES" | head -10 | sed 's/^/• /')
-            if [ "${{ steps.commit_info.outputs.files_count }}" -gt 10 ]; then
-              FILES_LIST="$FILES_LIST\n... and $(($${{ steps.commit_info.outputs.files_count }} - 10)) more files"
+            FILES_COUNT="${{ steps.commit_info.outputs.files_count }}"
+            if [ "$FILES_COUNT" -gt 10 ]; then
+              REMAINING=$((FILES_COUNT - 10))
+              FILES_LIST="$FILES_LIST\n... and $REMAINING more files"
             fi
           else
             FILES_LIST="No files changed"
