@@ -126,13 +126,19 @@ export function generateRandomName(race: WoWRace): string {
 }
 
 export function getAllianceRaces(): WoWRace[] {
-  return Object.values(RACES)
-    .filter((r) => r.faction === 'Alliance')
-    .map((r) => r.name);
+  // TEMPORARILY: Only Humans enabled (other races not yet tested)
+  return ['Human'];
+  
+  // return Object.values(RACES)
+  //   .filter((r) => r.faction === 'Alliance')
+  //   .map((r) => r.name);
 }
 
 export function getHordeRaces(): WoWRace[] {
-  return Object.values(RACES)
-    .filter((r) => r.faction === 'Horde')
-    .map((r) => r.name);
+  // TEMPORARILY: No Horde races enabled (not yet tested)
+  return [];
+  
+  // return Object.values(RACES)
+  //   .filter((r) => r.faction === 'Horde')
+  //   .map((r) => r.name);
 }
