@@ -404,6 +404,19 @@ export class InventorySystem {
       equippedCount,
     };
   }
+
+  /**
+   * Get item counts for quest tracking
+   */
+  getItemCounts(inventory: InventoryState): Map<number, number> {
+    const counts = new Map<number, number>();
+    
+    for (const bagItem of inventory.bags) {
+      counts.set(bagItem.itemId, bagItem.count);
+    }
+    
+    return counts;
+  }
 }
 
 /**

@@ -190,6 +190,37 @@ export class QuestExecutor {
   }
 
   /**
+   * Update Collection Objective Progress from Inventory
+   */
+  updateCollectionProgress(itemCounts: Map<number, number>): void {
+    if (!this.currentQuest) return;
+
+    let anyUpdated = false;
+
+    // Update all collection objectives
+    for (const objective of this.currentQuest.objectives) {
+      if (objective.type === 'collect' && objective.itemId) {
+        const count = itemCounts.get(objective.itemId) || 0;
+        const oldCurrent = objective.current;
+        objective.current = Math.min(count, objective.required);
+        objective.completed = objective.current >= objective.required;
+
+        if (objective.current !== oldCurrent) {
+          anyUpdated = true;
+        }
+      }
+    }
+
+    // Check if all objectives completed
+    if (anyUpdated) {
+      const allCompleted = this.currentQuest.objectives.every(obj => obj.completed);
+      if (allCompleted) {
+        this.currentQuest.status = 'completed';
+      }
+    }
+  }
+
+  /**
    * Ist Quest bereit zur Abgabe?
    */
   isQuestComplete(): boolean {

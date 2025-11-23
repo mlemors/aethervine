@@ -416,6 +416,22 @@ export class GameEngine {
         const questTag = drop.isQuestItem ? ' 🎯(Quest Item)' : '';
         this.log(`📦 Looted: ${drop.item.name}${countStr}${questTag}`);
       }
+
+      // Update collection objectives if quest items were looted
+      if (this.state.currentQuest && lootResult.items.some(drop => drop.isQuestItem)) {
+        const itemCounts = this.inventorySystem.getItemCounts(this.state.inventory);
+        this.executor.updateCollectionProgress(itemCounts);
+
+        // Log quest progress
+        const progress = this.executor.getQuestProgress();
+        if (progress) {
+          for (const obj of progress.objectives) {
+            if (obj.type === 'collect' && !obj.completed) {
+              this.log(`  📋 Quest Progress: ${obj.current}/${obj.required} collected`);
+            }
+          }
+        }
+      }
     }
 
     this.state.currentMobId = null;
@@ -435,9 +451,25 @@ export class GameEngine {
         if (success) {
           this.log(`✓ Quest completed: ${this.state.currentQuest.questName}`);
           
-          // Award quest XP reward
+          // Remove quest items from inventory
           const quest = this.db.getQuest(this.state.currentQuest.questId);
           if (quest) {
+            // Remove all quest items required by this quest
+            for (let i = 1; i <= 6; i++) {
+              const itemId = quest[`ReqItemId${i}`];
+              const itemCount = quest[`ReqItemCount${i}`];
+              
+              if (itemId && itemId > 0 && itemCount > 0) {
+                const removed = this.inventorySystem.removeItem(this.state.inventory, itemId, itemCount);
+                if (removed) {
+                  const itemData = this.db.getItem(itemId);
+                  const itemName = itemData?.name || `Item ${itemId}`;
+                  this.log(`  ↪️ Turned in: ${itemName} x${itemCount}`);
+                }
+              }
+            }
+
+            // Award quest XP reward
             if (quest.RewXP > 0) {
               this.awardExperience(quest.RewXP, this.state.currentQuest.questName);
             }
