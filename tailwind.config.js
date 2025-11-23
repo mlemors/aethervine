@@ -14,6 +14,11 @@ export default {
         'wow-uncommon': '#1eff00',
         'wow-common': '#ffffff',
         'wow-poor': '#9d9d9d',
+        // Logo colors
+        'aether-cyan': '#00d9ff',
+        'aether-cyan-dark': '#00a8cc',
+        'aether-teal': '#00ffcc',
+        'aether-gold': '#ffcc00',
       },
     },
   },

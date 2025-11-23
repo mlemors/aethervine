@@ -3,6 +3,7 @@
  */
 
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import type { Character, WoWClass, WoWRace } from '../../types/character';
 
 interface CharacterStore {
@@ -19,8 +20,10 @@ interface CharacterStore {
 
 const generateId = () => `char_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-export const useCharacterStore = create<CharacterStore>((set) => ({
-  character: null,
+export const useCharacterStore = create<CharacterStore>()(
+  persist(
+    (set) => ({
+      character: null,
 
   createCharacter: (name, wowClass, race) => {
     const faction = ['Human', 'Dwarf', 'Night Elf', 'Gnome'].includes(race)
@@ -146,4 +149,9 @@ export const useCharacterStore = create<CharacterStore>((set) => ({
         },
       };
     }),
-}));
+}),
+    {
+      name: 'aethervine-character',
+    }
+  )
+);
