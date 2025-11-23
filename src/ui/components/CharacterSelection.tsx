@@ -2,7 +2,7 @@
  * Character Selection Screen
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useCharacterStore } from '../stores/characterStore';
 import type { Character } from '../../types/character';
 
@@ -15,6 +15,18 @@ interface CharacterSelectionProps {
 export const CharacterSelection = ({ onCharacterSelected, onCreateNew, onBack }: CharacterSelectionProps) => {
   const [selectedIndex, setSelectedIndex] = useState<number>(-1);
   const { character } = useCharacterStore();
+
+  // ESC key handler to go back
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && onBack) {
+        onBack();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onBack]);
 
   // Mock characters for now - will be loaded from store later
   const characters: Character[] = character ? [character] : [];

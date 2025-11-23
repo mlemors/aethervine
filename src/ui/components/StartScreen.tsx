@@ -8,38 +8,42 @@ interface StartScreenProps {
 
 export const StartScreen = ({ onStart }: StartScreenProps) => {
   return (
-    <div className="fixed inset-0 flex flex-col">
+    <div className="fixed inset-0 flex flex-col min-h-screen">
       {/* Background Image */}
       <div
         className="absolute inset-0 bg-cover bg-center bg-no-repeat"
         style={{
           backgroundImage: 'url(/assets/backgrounds/teldrassil.png)',
-          filter: 'brightness(0.6)',
+          filter: 'brightness(1)',
         }}
       />
 
       {/* Vignette Overlay */}
       <div className="absolute inset-0 bg-gradient-radial from-transparent via-black/30 to-black/70" />
 
+      {/* Logo - Absolute positioned */}
+      <div className="absolute top-[5vh] left-0 right-0 z-20 flex justify-center">
+        <img
+          src="/assets/logos/game-logo.png"
+          alt="Aethervine"
+          className="h-[15vh] max-h-32 object-contain drop-shadow-2xl"
+        />
+      </div>
+
       {/* Content */}
-      <div className="relative z-10 flex-1 flex items-center justify-center px-6">
+      <div className="relative z-10 flex-1 flex items-end justify-center px-6 pb-[8vh]">
         <div className="w-full max-w-md">
-          <div className="flex flex-col items-center justify-between min-h-[80vh]">
-            {/* Logo */}
-            <div className="flex-1 flex items-center justify-center">
-              <img
-                src="/assets/logos/game-logo.png"
-                alt="Aethervine"
-                className="h-40 object-contain drop-shadow-2xl"
-              />
-            </div>
-            
+          <div className="flex flex-col items-center">
             {/* Start Button */}
             <button
               onClick={onStart}
-              className="px-12 py-4 bg-gradient-to-r from-aether-cyan to-aether-teal hover:from-aether-cyan-dark hover:to-aether-cyan text-white text-xl font-bold rounded-lg transition-all shadow-2xl border-2 border-aether-gold hover:scale-105 mb-20"
+              className="transition-all hover:scale-105"
             >
-              START
+              <img
+                src="/assets/logos/start-button.png"
+                alt="Start"
+                className="h-[20vh] max-h-40 object-contain drop-shadow-2xl"
+              />
             </button>
           </div>
         </div>

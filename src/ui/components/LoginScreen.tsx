@@ -62,7 +62,7 @@ export const LoginScreen = ({ onLoginSuccess, onBack }: LoginScreenProps) => {
   };
 
   return (
-    <div className="fixed inset-0 flex flex-col">
+    <div className="fixed inset-0 flex flex-col min-h-screen">
       {/* Background Image */}
       <div
         className="absolute inset-0 bg-cover bg-center bg-no-repeat"
@@ -75,49 +75,20 @@ export const LoginScreen = ({ onLoginSuccess, onBack }: LoginScreenProps) => {
       {/* Vignette Overlay */}
       <div className="absolute inset-0 bg-gradient-radial from-transparent via-black/30 to-black/70" />
 
+      {/* Logo - Absolute positioned */}
+      <div className="absolute top-[5vh] left-0 right-0 z-20 flex justify-center">
+        <img
+          src="/assets/logos/game-logo.png"
+          alt="Aethervine"
+          className="h-[15vh] max-h-32 object-contain drop-shadow-2xl"
+        />
+      </div>
+
       {/* Content */}
       <div className="relative z-10 flex-1 flex items-center justify-center px-6">
         <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="flex justify-center mb-8">
-          <img
-            src="/assets/logos/game-logo.png"
-            alt="Aethervine"
-            className="h-32 object-contain drop-shadow-2xl"
-          />
-        </div>
-
         {/* Login Form */}
         <div className="bg-gray-900/90 backdrop-blur-sm rounded-lg border-2 border-cyan-500/30 shadow-2xl p-8">
-          <div className="flex gap-2 mb-6">
-            <button
-              onClick={() => {
-                setMode('login');
-                setError('');
-              }}
-              className={`flex-1 py-2 px-4 rounded-lg font-semibold transition-all ${
-                mode === 'login'
-                  ? 'bg-gradient-to-r from-aether-cyan to-aether-teal text-white border-2 border-aether-gold'
-                  : 'bg-gray-800 text-gray-300 hover:bg-gray-700 border-2 border-gray-600'
-              }`}
-            >
-              Login
-            </button>
-            <button
-              onClick={() => {
-                setMode('register');
-                setError('');
-              }}
-              className={`flex-1 py-2 px-4 rounded-lg font-semibold transition-all ${
-                mode === 'register'
-                  ? 'bg-gradient-to-r from-aether-cyan to-aether-teal text-white border-2 border-aether-gold'
-                  : 'bg-gray-800 text-gray-300 hover:bg-gray-700 border-2 border-gray-600'
-              }`}
-            >
-              Register
-            </button>
-          </div>
-
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label htmlFor="username" className="block text-sm font-medium text-gray-300 mb-2">
