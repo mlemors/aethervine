@@ -20,8 +20,15 @@ export class LootSystem {
 
   /**
    * Generate loot from a killed mob
+   * @param creatureId The mob that was killed
+   * @param playerLevel Player's current level
+   * @param activeQuestIds List of quest IDs the player currently has active
    */
-  generateMobLoot(creatureId: number, playerLevel: number): LootResult {
+  generateMobLoot(
+    creatureId: number, 
+    playerLevel: number,
+    activeQuestIds: number[] = []
+  ): LootResult {
     const lootTable = this.db.getLootTable(creatureId);
     const drops: LootDrop[] = [];
     let gold = 0;
@@ -52,6 +59,21 @@ export class LootSystem {
         continue;
       }
 
+      // Check if it's a quest item (negative ChanceOrQuestChance)
+      const isQuestItem = lootEntry.ChanceOrQuestChance < 0;
+
+      // If it's a quest item, check if player needs it
+      if (isQuestItem) {
+        const playerNeedsItem = this.playerNeedsQuestItem(
+          lootEntry.item,
+          activeQuestIds
+        );
+        
+        if (!playerNeedsItem) {
+          continue; // Skip this quest item
+        }
+      }
+
       // Determine if item drops based on chance
       const chance = Math.abs(lootEntry.ChanceOrQuestChance);
       const roll = Math.random() * 100;
@@ -65,9 +87,6 @@ export class LootSystem {
           Math.random() * (lootEntry.maxcount - lootEntry.mincountOrRef + 1)
         ) + lootEntry.mincountOrRef;
 
-        // Check if it's a quest item (negative ChanceOrQuestChance)
-        const isQuestItem = lootEntry.ChanceOrQuestChance < 0;
-
         drops.push({
           item,
           count,
@@ -80,6 +99,29 @@ export class LootSystem {
       items: drops,
       gold,
     };
+  }
+
+  /**
+   * Check if player needs this quest item for any active quest
+   */
+  private playerNeedsQuestItem(itemId: number, activeQuestIds: number[]): boolean {
+    if (activeQuestIds.length === 0) return false;
+
+    // Check each active quest to see if it requires this item
+    for (const questId of activeQuestIds) {
+      const quest = this.db.getQuest(questId);
+      if (!quest) continue;
+
+      // Check all 6 possible item requirements
+      for (let i = 1; i <= 6; i++) {
+        const reqItemId = quest[`ReqItemId${i}`];
+        if (reqItemId === itemId) {
+          return true;
+        }
+      }
+    }
+
+    return false;
   }
 
   /**

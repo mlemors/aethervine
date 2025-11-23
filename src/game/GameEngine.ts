@@ -388,10 +388,17 @@ export class GameEngine {
       return;
     }
 
-    // Generate loot
+    // Get active quest IDs
+    const activeQuestIds: number[] = [];
+    if (this.state.currentQuest) {
+      activeQuestIds.push(this.state.currentQuest.questId);
+    }
+
+    // Generate loot with quest awareness
     const lootResult = this.lootSystem.generateMobLoot(
       this.state.currentMobId,
-      this.state.character.level
+      this.state.character.level,
+      activeQuestIds
     );
 
     // Add gold
@@ -406,7 +413,8 @@ export class GameEngine {
         this.inventorySystem.addItem(this.state.inventory, drop.item, drop.count);
         
         const countStr = drop.count > 1 ? ` x${drop.count}` : '';
-        this.log(`📦 Looted: ${drop.item.name}${countStr} ${drop.isQuestItem ? '(Quest)' : ''}`);
+        const questTag = drop.isQuestItem ? ' 🎯(Quest Item)' : '';
+        this.log(`📦 Looted: ${drop.item.name}${countStr}${questTag}`);
       }
     }
 
